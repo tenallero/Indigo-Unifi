@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<Devices>
+    <!-- User Device -->
+    <Device type="sensor" id="unifiuser">
+        <Name>Unifi User</Name>
+        <ConfigUI>
+            <Field id="macaddress" type="textfield">
+                <Label>User MAC Address:</Label>
+                <Description>Enter the MAC address of your User</Description>
+            </Field>
+            <Field id="ipaddress" type="textfield">
+                <Label>User IP Address:</Label>
+                <Description>Enter the IP address of your User</Description>
+            </Field>
+            <Field id="minutesout" type="textfield" defaultValue="20">
+                <Label>Minutes till away:</Label>
+                <Description>Minutes till away</Description>
+            </Field>
+            <Field id="address" type="textfield" hidden="true">
+
+            </Field>
+
+        </ConfigUI>
+        <UiDisplayStateId>state</UiDisplayStateId>
+        <States>
+        </States>
+    </Device>
+    <!-- WLAN Device -->
+    <Device type="relay" id="unifiwlan">
+        <Name>Unifi WLAN</Name>
+        <ConfigUI>
+            <Field id="ssid" type="textfield">
+                <Label>SSID:</Label>
+                <Description>Enter the SSID for this WLAN</Description>
+            </Field>         
+
+        </ConfigUI>
+        <UiDisplayStateId>state</UiDisplayStateId>
+        <States>
+        </States>
+    </Device>
+</Devices>
