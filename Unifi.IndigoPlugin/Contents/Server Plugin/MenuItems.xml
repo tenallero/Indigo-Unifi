@@ -1,3 +1,19 @@
 <?xml version="1.0"?>
 <MenuItems>
+   
+    <MenuItem id="toggleDebugging">
+		<Name>Toggle Debugging</Name>
+        <CallbackMethod>toggleDebugging</CallbackMethod>
+	</MenuItem>
+
+     <MenuItem id="checkForUpdates">
+        <Name>Check for Plugin Updates</Name>
+        <CallbackMethod>checkForUpdates</CallbackMethod>
+    </MenuItem>
+    
+    <MenuItem id="updatePlugin">
+        <Name>Update Plugin</Name>
+        <CallbackMethod>updatePlugin</CallbackMethod>
+    </MenuItem>
+    
 </MenuItems>
