@@ -48,6 +48,7 @@ class Plugin(indigo.PluginBase):
 
     def deviceStartComm(self, device):
         self.debugLog(device.name + ": Starting device")
+        device.stateListOrDisplayStateIdChanged()
         propsIPAddress = ''
         propsMACAddress = ''
         propsMinutesOut = 0

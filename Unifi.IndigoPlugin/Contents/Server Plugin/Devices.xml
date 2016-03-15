@@ -19,6 +19,7 @@
             <Field id="address" type="textfield" hidden="true">
 
             </Field>
+            <Field type="checkbox" id="SupportsStatusRequest"       defaultValue="true" hidden="true" />  
 
         </ConfigUI>
         <UiDisplayStateId>state</UiDisplayStateId>
