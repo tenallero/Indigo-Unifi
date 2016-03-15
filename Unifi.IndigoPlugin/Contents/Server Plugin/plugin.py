@@ -469,7 +469,7 @@ class Plugin(indigo.PluginBase):
 
     def actionControlSensor(self, pluginAction, device):
         if pluginAction.sensorAction == indigo.kDeviceAction.RequestStatus:
-            indigo.server.log ("Unifi controller. Requesting status ... ")
+            indigo.server.log ('sent "' + device.name + '" status request')
             self.unifiUserStatusRequest()
             self.unifiWlanStatusRequest()
 
