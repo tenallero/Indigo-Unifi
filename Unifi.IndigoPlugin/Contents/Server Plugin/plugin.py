@@ -11,13 +11,14 @@ import datetime
 import time
 import simplejson as json
 import os
+from ghpu import GitHubPluginUpdater
 #from unifi.controller import Controller
 
 class Plugin(indigo.PluginBase):
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         indigo.PluginBase.__init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
-
+        self.updater = GitHubPluginUpdater('tenallero', 'Indigo-Unifi', self)
 
         self.ControllerIP   = ""
         self.ControllerPort = ""
@@ -79,6 +80,7 @@ class Plugin(indigo.PluginBase):
         self.loadPluginPrefs()
         self.debugLog(u"startup called")
         self.requestID = 0
+        self.updater.checkForUpdate()
 
 
     def shutdown(self):
@@ -443,3 +445,31 @@ class Plugin(indigo.PluginBase):
             indigo.server.log ("Unifi controller. Requesting status ... ")
             self.unifiUserStatusRequest()
             self.unifiWlanStatusRequest()
+
+    ########################################
+    # Menu Methods
+    ########################################
+    def toggleDebugging(self):
+        if self.debug:
+            indigo.server.log("Turning off debug logging")
+            self.pluginPrefs["debugEnabled"] = False                
+        else:
+            indigo.server.log("Turning on debug logging")
+            self.pluginPrefs["debugEnabled"] = True
+        self.debug = not self.debug
+        return
+        
+    def menuDeviceDiscovery(self):
+        if self.discoveryWorking:
+            return
+        self.deviceDiscover()
+        return
+        
+    def checkForUpdates(self):
+        update = self.updater.checkForUpdate() 
+        if (update != None):
+            pass
+        return    
+
+    def updatePlugin(self):
+        self.updater.update()
