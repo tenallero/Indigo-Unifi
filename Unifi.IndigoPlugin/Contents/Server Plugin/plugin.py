@@ -80,7 +80,7 @@ class Plugin(indigo.PluginBase):
                 device.pluginProps["address"] = propsIPAddress
     
     def addDeviceToListWlan(self,device):
-    
+        pass
 
     def deleteDeviceFromList(self, device):
         if device:
