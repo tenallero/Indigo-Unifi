@@ -50,6 +50,16 @@ class Plugin(indigo.PluginBase):
     def deviceStartComm(self, device):
         self.debugLog(device.name + ": Starting device")
         device.stateListOrDisplayStateIdChanged()
+        self.addDeviceToList (device)
+
+    def addDeviceToList(self,device):
+        if device:
+            if device.deviceTypeId == u"unifiuser":
+                self.addDeviceToListUser(device)
+            elif device.deviceTypeId == u"unifiwlan":
+                self.addDeviceToListWlan(device)
+    
+    def addDeviceToListUser(self,device):
         propsIPAddress = ''
         propsMACAddress = ''
         propsMinutesOut = 0
@@ -68,13 +78,27 @@ class Plugin(indigo.PluginBase):
                 device.pluginProps["address"] = propsMACAddress
             else:
                 device.pluginProps["address"] = propsIPAddress
+    
+    def addDeviceToListWlan(self,device):
+    
+
+    def deleteDeviceFromList(self, device):
+        if device:
+            if device.deviceTypeId == u"unifiuser":
+                if device.id in self.userDeviceList:
+                    del self.userDeviceList[device.id]
+            elif device.deviceTypeId == u"unifiwlan":
+                if device.id in self.wlanDeviceList:
+                    del self.wlanDeviceList[device.id]
+            
+            
 
 
     def deviceStopComm(self,device):
         if device.id not in self.userDeviceList:
             return
         self.debugLog(device.name + ": Stoping device")
-        del self.userDeviceList[device.id]
+        self.deleteDeviceFromList(device)
 
     def startup(self):
         self.loadPluginPrefs()
@@ -161,7 +185,10 @@ class Plugin(indigo.PluginBase):
     def closedDeviceConfigUi(self, valuesDict, userCancelled, typeId, devId):
         if userCancelled is False:
             indigo.server.log ("Device preferences were updated.")
-
+            device = indigo.devices[devId]
+            self.deleteDeviceFromList (device)
+            self.addDeviceToList (device)
+            
     def closedPrefsConfigUi ( self, valuesDict, UserCancelled):
         #   If the user saves the preferences, reload the preferences
         if UserCancelled is False:
