@@ -474,6 +474,16 @@ class Plugin(indigo.PluginBase):
             self.unifiWlanStatusRequest()
 
     ########################################
+    # Actions Methods
+    ########################################
+    
+    def silentStatusRequest (self, pluginAction, device):
+        self.unifiWlanStatusRequest()
+        self.unifiUserStatusRequest()
+        pass
+    
+
+    ########################################
     # Menu Methods
     ########################################
     def toggleDebugging(self):
