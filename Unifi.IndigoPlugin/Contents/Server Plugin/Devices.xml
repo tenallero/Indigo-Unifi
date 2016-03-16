@@ -12,7 +12,7 @@
                 <Label>User IP Address:</Label>
                 <Description>Enter the IP address of your User</Description>
             </Field>
-            <Field id="minutesout" type="textfield" defaultValue="20">
+            <Field id="minutesout" type="textfield" defaultValue="20" hidden="true">
                 <Label>Minutes till away:</Label>
                 <Description>Minutes till away</Description>
             </Field>
@@ -36,6 +36,20 @@
                 <TriggerLabel>lastSeen</TriggerLabel>
                 <ControlPageLabel>lastSeen</ControlPageLabel>
             </State>
+            
+            <State id="signal" defaultValue="0">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>signal</TriggerLabel>
+                <ControlPageLabel>signal</ControlPageLabel>
+            </State>
+            
+            <State id="rssi" defaultValue="0">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>rssi</TriggerLabel>
+                <ControlPageLabel>rssi</ControlPageLabel>
+            </State>
+            
+            
             
         </States>
     </Device>

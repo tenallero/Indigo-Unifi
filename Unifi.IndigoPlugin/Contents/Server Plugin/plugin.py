@@ -339,9 +339,6 @@ class Plugin(indigo.PluginBase):
             self.debugLog(theJSON)
             return
 
-
-
-
         for wlan in self.wlanDeviceList:
             try:
                 ssid = self.userDeviceList[wlan]['ssid']
@@ -403,14 +400,18 @@ class Plugin(indigo.PluginBase):
         for client in self.userDeviceList:
             try:
                 clientDevice = self.userDeviceList[client]['ref']
-                lastSeen     = self.userDeviceList[client]['lastSeen']
-                firstSeen    = self.userDeviceList[client]['firstSeen']
-                minutesout   = self.userDeviceList[client]['minutesout']
-                secondsout   = minutesout * 60
+                #lastSeen     = self.userDeviceList[client]['lastSeen']
+                #firstSeen    = self.userDeviceList[client]['firstSeen']
+                #minutesout   = self.userDeviceList[client]['minutesout']
+                #secondsout   = minutesout * 60
                 connected    = False
                 matched      = False
-                memolast     = lastSeen
-
+                #memolast     = lastSeen
+                rssi         = 0
+                signal       = 0
+                lastSeen     = 0
+                firstSeen    = 0
+                
                 for sta in res:
                     mac = ""
                     ip  = ""
@@ -431,41 +432,56 @@ class Plugin(indigo.PluginBase):
                             if self.userDeviceList[client]['ipaddress'] == ip:
                                 matched = True
                         if (matched):
-                            lastSeen = int(sta['last_seen'])
+                            lastSeen  = int(sta['last_seen'])
                             firstSeen = int(sta['first_seen'])
+                            
                             #name = sta['name']
                             #hostname = sta['hostname']
-                            #snr = sta['rssi']
-                            #signal = sta['signal']
+                            rssi   = int(sta['rssi'])
+                            signal = int(sta['signal'])
+                            break
+                            
                     except Exception, e:
                         self.errorLog("Error looping clients (1): " + str(e))
 
-                if (now - lastSeen) > secondsout:
-                    connected = False
-                else:
-                    connected = True
-                    
+                #if (now - lastSeen) > secondsout:
+                #    connected = False
+                #else:
+                #    connected = True
+                
+                connected = matched
+
                 if clientDevice.states["onOffState"] != connected:
                     clientDevice.updateStateOnServer("onOffState",connected)
                     if connected:
-                        self.debugLog("Unifi Controller: " + clientDevice.name + ' is connected. Has been absent during ' + str((now - memolast)/60) + ' minutes.' )
-                        self.userDeviceList[client]['firstseen'] = now
+                        #self.debugLog("Unifi Controller: " + clientDevice.name + ' is connected. Has been absent during ' + str((now - memolast)/60) + ' minutes.' )
+                        #self.userDeviceList[client]['firstseen'] = now
+                        self.debugLog('device "' + clientDevice.name + '" now is connected.')
                     else:
-                        self.debugLog("Unifi Controller: " + clientDevice.name + ' is disconnected. Has been present during ' + str((now - firstSeen)/60) + ' minutes.' )
-                self.userDeviceList[client]['firstSeen'] = firstSeen
-                self.userDeviceList[client]['lastSeen'] = lastSeen
+                        #self.debugLog("Unifi Controller: " + clientDevice.name + ' is disconnected. Has been present during ' + str((now - firstSeen)/60) + ' minutes.' )
+                        self.debugLog('device "' + clientDevice.name + '" now is absent.')
                 
-                firstSeenUi = datetime.datetime.fromtimestamp(firstSeen).strftime('%Y-%m-%d %H:%M:%S')
-                lastSeenUi = datetime.datetime.fromtimestamp(lastSeen).strftime('%Y-%m-%d %H:%M:%S')
+                #self.userDeviceList[client]['firstSeen'] = firstSeen
+                #self.userDeviceList[client]['lastSeen'] = lastSeen
+            
+                #firstSeenUi = datetime.datetime.fromtimestamp(firstSeen).strftime('%Y-%m-%d %H:%M:%S')
+                #lastSeenUi = datetime.datetime.fromtimestamp(lastSeen).strftime('%Y-%m-%d %H:%M:%S')                
+                #clientDevice.updateStateOnServer("firstSeen", value=firstSeen, uiValue=firstSeenUi)
+                #clientDevice.updateStateOnServer("lastSeen", value=lastSeen, uiValue=lastSeenUi)
                 
-                clientDevice.updateStateOnServer("firstSeen", value=firstSeen, uiValue=firstSeenUi)
-                clientDevice.updateStateOnServer("lastSeen", value=lastSeen, uiValue=lastSeenUi)
-
+                
+                self.updateDeviceState (clientDevice,"firstSeen", firstSeen)
+                self.updateDeviceState (clientDevice,"lastSeen",  lastSeen)                    
+                self.updateDeviceState (clientDevice,"rssi",      rssi)
+                self.updateDeviceState (clientDevice,"signal",    signal)
 
             except Exception, e:
                 self.errorLog("Error looping clients (2): " + str(e))
 
-
+    def updateDeviceState(self,device,state,newValue):
+        if (newValue != device.states[state]):
+            device.updateStateOnServer(key=state, value=newValue)
+            
     def sendRpcRequest(self, device, method, params):
         pass
 
