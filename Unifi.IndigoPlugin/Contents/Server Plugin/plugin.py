@@ -287,9 +287,9 @@ class Plugin(indigo.PluginBase):
                 todayNow = datetime.datetime.now()
                 if nextTime <= todayNow:
 
-                    nextTime = todayNow + datetime.timedelta(seconds=self.ControllerInterval)
-                    self.unifiWlanStatusRequest()
+                    nextTime = todayNow + datetime.timedelta(seconds=self.ControllerInterval)                    
                     self.unifiUserStatusRequest()
+                    self.unifiWlanStatusRequest()
         except self.StopThread:
             pass
             self.debugLog(u"Exited loop")
@@ -395,7 +395,7 @@ class Plugin(indigo.PluginBase):
             return
 
 
-        now = int(time.time())
+        #now = int(time.time())
 
         for client in self.userDeviceList:
             try:
@@ -503,10 +503,9 @@ class Plugin(indigo.PluginBase):
     ########################################
     
     def silentStatusRequest (self, pluginAction, device):
-        self.unifiWlanStatusRequest()
         self.unifiUserStatusRequest()
+        self.unifiWlanStatusRequest()        
         pass
-    
 
     ########################################
     # Menu Methods
