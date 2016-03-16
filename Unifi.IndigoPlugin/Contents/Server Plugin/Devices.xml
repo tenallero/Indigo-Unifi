@@ -19,11 +19,24 @@
             <Field id="address" type="textfield" hidden="true">
 
             </Field>
-            <Field type="checkbox" id="SupportsStatusRequest"       defaultValue="true" hidden="true" />  
+            <Field type="checkbox" id="SupportsStatusRequest"  defaultValue="true" hidden="true" />  
 
         </ConfigUI>
         <UiDisplayStateId>state</UiDisplayStateId>
         <States>
+        
+            <State id="firstSeen" defaultValue="0">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>firstSeen</TriggerLabel>
+                <ControlPageLabel>firstSeen</ControlPageLabel>
+            </State>
+            
+            <State id="lastSeen" defaultValue="0">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>lastSeen</TriggerLabel>
+                <ControlPageLabel>lastSeen</ControlPageLabel>
+            </State>
+            
         </States>
     </Device>
     <!-- WLAN Device -->
@@ -34,7 +47,7 @@
                 <Label>SSID:</Label>
                 <Description>Enter the SSID for this WLAN</Description>
             </Field>         
-
+            <Field type="checkbox" id="SupportsStatusRequest"  defaultValue="true" hidden="true" />  
         </ConfigUI>
         <UiDisplayStateId>state</UiDisplayStateId>
         <States>

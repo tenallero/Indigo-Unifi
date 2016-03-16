@@ -63,8 +63,8 @@ class Plugin(indigo.PluginBase):
         propsIPAddress = ''
         propsMACAddress = ''
         propsMinutesOut = 0
-        lastseen  = int(time.time()) - 15000
-        firstseen = int(time.time()) - 15000
+        lastSeen  = int(time.time()) - 15000
+        firstSeen = int(time.time()) - 15000
         if device.id not in self.userDeviceList:
             propsIPAddress = device.pluginProps["ipaddress"]
             propsIPAddress = propsIPAddress.strip()
@@ -73,7 +73,7 @@ class Plugin(indigo.PluginBase):
             propsMACAddress = propsMACAddress.strip()
             propsMACAddress = propsMACAddress.replace (' ','')
             propsMinutesOut = int(device.pluginProps["minutesout"])
-            self.userDeviceList[device.id] = {'ref':device, 'ipaddress':propsIPAddress, 'minutesout': propsMinutesOut, 'macaddress':propsMACAddress, 'lastseen':lastseen, 'firstseen':firstseen}
+            self.userDeviceList[device.id] = {'ref':device, 'ipaddress':propsIPAddress, 'minutesout': propsMinutesOut, 'macaddress':propsMACAddress, 'lastSeen':lastSeen, 'firstSeen':firstSeen}
             if propsMACAddress > '':
                 device.pluginProps["address"] = propsMACAddress
             else:
@@ -279,9 +279,7 @@ class Plugin(indigo.PluginBase):
     ###################################################################
 
     def runConcurrentThread(self):
-
         try:
-
             lastTime = datetime.datetime.now()
             nextTime = lastTime
             while not(self.stopThread):
@@ -302,7 +300,6 @@ class Plugin(indigo.PluginBase):
 
 
     def stopConcurrentThread(self):
-
         self.stopThread = True
         self.debugLog(u"stopConcurrentThread called")
 
@@ -319,7 +316,6 @@ class Plugin(indigo.PluginBase):
         return obj
 
     def unifiWlanStatusRequest (self):
-
         theJSON = ""
         theCMD  = ""
 
@@ -369,11 +365,11 @@ class Plugin(indigo.PluginBase):
                             pass
 
                     except Exception, e:
-                        self.debugLog("Error looping devices (2). ")
+                        self.errorLog("Error looping wlans (1): " + str(e))
 
 
             except Exception, e:
-                self.debugLog("Error looping wlans. ") # + e.strerror)
+                self.errorLog("Error looping wlans (2): " + str(e))
 
 
     def unifiUserStatusRequest (self):
@@ -407,13 +403,13 @@ class Plugin(indigo.PluginBase):
         for client in self.userDeviceList:
             try:
                 clientDevice = self.userDeviceList[client]['ref']
-                lastseen     = self.userDeviceList[client]['lastseen']
-                firstseen    = self.userDeviceList[client]['firstseen']
+                lastSeen     = self.userDeviceList[client]['lastSeen']
+                firstSeen    = self.userDeviceList[client]['firstSeen']
                 minutesout   = self.userDeviceList[client]['minutesout']
                 secondsout   = minutesout * 60
                 connected    = False
                 matched      = False
-                memolast     = lastseen
+                memolast     = lastSeen
 
                 for sta in res:
                     mac = ""
@@ -435,33 +431,39 @@ class Plugin(indigo.PluginBase):
                             if self.userDeviceList[client]['ipaddress'] == ip:
                                 matched = True
                         if (matched):
-                            lastseen = int(sta['last_seen'])
-                            firstseen = int(sta['first_seen'])
+                            lastSeen = int(sta['last_seen'])
+                            firstSeen = int(sta['first_seen'])
                             #name = sta['name']
                             #hostname = sta['hostname']
                             #snr = sta['rssi']
                             #signal = sta['signal']
                     except Exception, e:
-                        self.debugLog("Error looping devices (2). ")
+                        self.errorLog("Error looping clients (1): " + str(e))
 
-                if (now - lastseen) > secondsout:
+                if (now - lastSeen) > secondsout:
                     connected = False
                 else:
                     connected = True
+                    
                 if clientDevice.states["onOffState"] != connected:
                     clientDevice.updateStateOnServer("onOffState",connected)
                     if connected:
                         self.debugLog("Unifi Controller: " + clientDevice.name + ' is connected. Has been absent during ' + str((now - memolast)/60) + ' minutes.' )
                         self.userDeviceList[client]['firstseen'] = now
                     else:
-                        self.debugLog("Unifi Controller: " + clientDevice.name + ' is disconnected. Has been present during ' + str((now - firstseen)/60) + ' minutes.' )
-                self.userDeviceList[client]['firstseen'] = firstseen
-                self.userDeviceList[client]['lastseen'] = lastseen
-
+                        self.debugLog("Unifi Controller: " + clientDevice.name + ' is disconnected. Has been present during ' + str((now - firstSeen)/60) + ' minutes.' )
+                self.userDeviceList[client]['firstSeen'] = firstSeen
+                self.userDeviceList[client]['lastSeen'] = lastSeen
+                
+                firstSeenUi = datetime.datetime.fromtimestamp(firstSeen).strftime('%Y-%m-%d %H:%M:%S')
+                lastSeenUi = datetime.datetime.fromtimestamp(lastSeen).strftime('%Y-%m-%d %H:%M:%S')
+                
+                clientDevice.updateStateOnServer("firstSeen", value=firstSeen, uiValue=firstSeenUi)
+                clientDevice.updateStateOnServer("lastSeen", value=lastSeen, uiValue=lastSeenUi)
 
 
             except Exception, e:
-                self.debugLog("Error looping devices. ") # + e.strerror)
+                self.errorLog("Error looping clients (2): " + str(e))
 
 
     def sendRpcRequest(self, device, method, params):
