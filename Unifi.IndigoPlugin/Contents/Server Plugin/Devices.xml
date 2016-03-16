@@ -27,14 +27,14 @@
         
             <State id="firstSeen" defaultValue="0">
                 <ValueType>Number</ValueType>
-                <TriggerLabel>firstSeen</TriggerLabel>
-                <ControlPageLabel>firstSeen</ControlPageLabel>
+                <TriggerLabel>first seen</TriggerLabel>
+                <ControlPageLabel>first seen</ControlPageLabel>
             </State>
             
             <State id="lastSeen" defaultValue="0">
                 <ValueType>Number</ValueType>
-                <TriggerLabel>lastSeen</TriggerLabel>
-                <ControlPageLabel>lastSeen</ControlPageLabel>
+                <TriggerLabel>last see</TriggerLabel>
+                <ControlPageLabel>last seen</ControlPageLabel>
             </State>
             
             <State id="upTime" defaultValue="0">
@@ -43,10 +43,10 @@
                 <ControlPageLabel>upTime</ControlPageLabel>
             </State>
             
-            <State id="appMac" >
+            <State id="lastAppMac" >
                 <ValueType>String</ValueType>
-                <TriggerLabel>appMac</TriggerLabel>
-                <ControlPageLabel>appMac</ControlPageLabel>
+                <TriggerLabel>Last App MAC</TriggerLabel>
+                <ControlPageLabel>Last App MAC</ControlPageLabel>
             </State>
             
             <State id="signal" defaultValue="0">

@@ -475,7 +475,7 @@ class Plugin(indigo.PluginBase):
                 
                 if connected:
                     self.updateDeviceState (clientDevice,"lastSeen",  lastSeen) 
-                    self.updateDeviceState (clientDevice,"appMac",  ap_mac)
+                    self.updateDeviceState (clientDevice,"lastAppMac",  ap_mac)
                     
                 self.updateDeviceState (clientDevice,"firstSeen", firstSeen)                                  
                 self.updateDeviceState (clientDevice,"upTime",    upTime)    
