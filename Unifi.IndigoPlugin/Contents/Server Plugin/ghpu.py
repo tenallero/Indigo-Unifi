@@ -18,20 +18,35 @@ import shutil
 import json
 import httplib
 import plistlib
-import indigo
+
+import ConfigParser
 
 from urllib2 import urlopen
 from StringIO import StringIO
 from zipfile import ZipFile
+from collections import namedtuple
+
+PluginInfo = namedtuple('PluginInfo', ['id', 'name', 'version'])
 
 ################################################################################
 class GitHubPluginUpdater(object):
 
     #---------------------------------------------------------------------------
-    def __init__(self, owner, repo, plugin=None):
-        self.owner = owner
-        self.repo = repo
+    def __init__(self, plugin=None, configFile='ghpu.cfg'):
         self.plugin = plugin
+
+        config = ConfigParser.RawConfigParser()
+        config.read(configFile)
+
+        self.repo = config.get('repository', 'name')
+        self.owner = config.get('repository', 'owner')
+
+        if (config.has_option('repository', 'path')):
+            self.path = config.get('repository', 'path')
+        else:
+            self.path = ''
+
+        # TODO error checking on configuration
 
     #---------------------------------------------------------------------------
     # install the latest version of the plugin represented by this updater
@@ -124,24 +139,19 @@ class GitHubPluginUpdater(object):
 
         data = None
 
-        try:
-            conn = httplib.HTTPSConnection('api.github.com')
-            conn.request('GET', requestPath, None, headers)
+        conn = httplib.HTTPSConnection('api.github.com')
+        conn.request('GET', requestPath, None, headers)
 
-            resp = conn.getresponse()
-            self._debug('HTTP %d %s' % (resp.status, resp.reason))
+        resp = conn.getresponse()
+        self._debug('HTTP %d %s' % (resp.status, resp.reason))
 
-            if (resp.status == 200):
-                data = json.loads(resp.read())
-            elif (400 <= resp.status < 500):
-                error = json.loads(resp.read())
-                self._error('Client Error: %s' % error['message'])
-            else:
-                self._error('Unhandled Error: %s' % resp.reason)
-
-        except Exception as e:
-            self._error('Unhandled Exception: %s' % str(e))
-            return None
+        if (resp.status == 200):
+            data = json.loads(resp.read())
+        elif (400 <= resp.status < 500):
+            error = json.loads(resp.read())
+            self._error('%s' % error['message'])
+        else:
+            self._error('Error: %s' % resp.reason)
 
         return data
 
@@ -171,17 +181,32 @@ class GitHubPluginUpdater(object):
         return update
 
     #---------------------------------------------------------------------------
-    # verifies the plugin info in the zipfile and returns the confirmed name-version
-    def _verifyPluginInfo(self, zipfile):
-        subfolder = self.plugin.pluginDisplayName + '.indigoPlugin'
+    # reads plugin info from the given pList
+    def _buildPluginInfo(self, plist):
+        pid = plist.get('CFBundleIdentifier', None)
+        pname = pluginName = plist.get('CFBundleDisplayName', None)
+        pver = pluginVersion = plist.get('PluginVersion', None)
+
+        return PluginInfo(id=pid, name=pname, version=pver)
+
+    #---------------------------------------------------------------------------
+    # reads the plugin info from the given path
+    def _readPluginInfoFromPath(self, path):
+        plistFile = os.path.join(path, 'Contents', 'Info.plist')
+        self._debug('Loading plugin info: %s' % plistFile)
+
+        plist = plistlib.readPlist(plistFile)
+
+        return self._buildPluginInfo(plist)
+
+    #---------------------------------------------------------------------------
+    # finds the plugin information in the zipfile
+    def _readPluginInfoFromArchive(self, zipfile):
         topdir = zipfile.namelist()[0]
-  
-        # read and confirm the plugin info contained in the zipfile      
-        plistFile = os.path.join(topdir, subfolder, 'Contents', 'Info.plist')
-        if not plistFile in zipfile.namelist():
-            plistFile = os.path.join(topdir, 'Contents', 'Info.plist')
-        
-        self._debug('Searching for plugin info: %s' % plistFile)
+
+        # read and the plugin info contained in the zipfile
+        plistFile = os.path.join(topdir, self.path, 'Contents', 'Info.plist')
+        self._debug('Reading plugin info: %s' % plistFile)
 
         plistData = zipfile.read(plistFile)
         if (plistData == None):
@@ -189,24 +214,24 @@ class GitHubPluginUpdater(object):
 
         plist = plistlib.readPlistFromString(plistData)
 
-        pluginId = plist.get('CFBundleIdentifier', None)
-        pluginName = plist.get('CFBundleDisplayName', None)
-        pluginVersion = plist.get('PluginVersion', None)
+        return self._buildPluginInfo(plist)
 
-        self._debug('Detected plugin in zipfile: %s' % pluginId)
+    #---------------------------------------------------------------------------
+    # verifies the provided plugin info matches what we expect
+    def _verifyPluginInfo(self, pInfo):
+        self._debug('Verifying plugin info: %s' % pInfo.id)
 
-        if (pluginId == None):
-            raise Exception('Unable to detect pluginId in download')
-        elif (pluginName == None):
-            raise Exception('Unable to detect pluginName in download')
-        elif (pluginVersion == None):
-            raise Exception('Unable to detect pluginVersion in download')
-        elif (self.plugin and (self.plugin.pluginId != pluginId)):
-            raise Exception('ID mismatch in download')
+        if (pInfo.id == None):
+            raise Exception('ID missing in source')
+        elif (pInfo.name == None):
+            raise Exception('Name missing in source')
+        elif (pInfo.version == None):
+            raise Exception('Version missing in soruce')
 
-        self._debug('Found plugin: %s-%s' % (pluginName, pluginVersion))
+        elif (self.plugin and (self.plugin.pluginId != pInfo.id)):
+            raise Exception('ID mismatch: %s' % pInfo.id)
 
-        return pluginName + '-' + pluginVersion
+        self._debug('Verified plugin: %s' % pInfo.name)
 
     #---------------------------------------------------------------------------
     # install a given release
@@ -214,45 +239,64 @@ class GitHubPluginUpdater(object):
         tmpdir = tempfile.gettempdir()
         self._debug('Workspace: %s' % tmpdir)
 
+        # the zipfile is held in memory until we extract
         zipfile = self._getZipFileFromRelease(release)
-        newPluginName = self._verifyPluginInfo(zipfile)
+        pInfo = self._readPluginInfoFromArchive(zipfile)
+
+        self._verifyPluginInfo(pInfo)
 
         # the top level directory should be the first entry in the zipfile
         # it is typically a combination of the owner, repo & release tag
         repotag = zipfile.namelist()[0]
 
-        # this is where the files will end up after extraction
-        destDir = os.path.join(tmpdir, repotag)
-        self._debug('Destination directory: %s' % destDir)
-        if (os.path.exists(destDir)): shutil.rmtree(destDir)
+        # this is where the repo files will end up after extraction
+        repoBaseDir = os.path.join(tmpdir, repotag)
+        self._debug('Destination directory: %s' % repoBaseDir)
 
-        # this is where the plugin will reside prior to installation
-        newPluginDir = os.path.join(tmpdir, newPluginName + '.indigoPlugin')
-        self._debug('Plugin directory: %s' % newPluginDir)
-        if (os.path.exists(newPluginDir)): shutil.rmtree(newPluginDir)
+        if (os.path.exists(repoBaseDir)):
+            shutil.rmtree(repoBaseDir)
+
+        # this is where the plugin will be after extracting
+        newPluginPath = os.path.join(repoBaseDir, self.path)
+        self._debug('Plugin source path: %s' % newPluginPath)
 
         # at this point, we should have been able to confirm the top-level directory
         # based on reading the pluginId, we know the plugin in the zipfile matches our
         # internal plugin reference (if we have one), temp directories are available
         # and we know the package location for installing the plugin
 
+        self._debug('Extracting files...')
         zipfile.extractall(tmpdir)
-  
+
         # now, make sure we got what we expected
-        if (not os.path.exists(destDir)):
+        if (not os.path.exists(repoBaseDir)):
             raise Exception('Failed to extract plugin')
 
-        # for 'open' to work properly, we need to use the .indigoPlugin package extension
-        os.rename(destDir, newPluginDir)
+        self._installPlugin(newPluginPath)
+        self._debug('Installation complete')
 
-        self._debug('Installing %s' % newPluginName)
-        subfolder = os.path.join(newPluginDir, self.plugin.pluginDisplayName + '.indigoPlugin')
-        if (os.path.exists(subfolder)):
-            subprocess.call(['open', subfolder])
-        else:
-            subprocess.call(['open', newPluginDir])
+    #---------------------------------------------------------------------------
+    # install plugin from the existing path
+    def _installPlugin(self, pluginPath):
+        tmpdir = tempfile.gettempdir()
 
-        # all clear...  the new plugin has been installed
+        pInfo = self._readPluginInfoFromPath(pluginPath)
+        self._verifyPluginInfo(pInfo)
+
+        # if the new plugin path does not end in .indigoPlugin, we need to do some
+        # path shuffling for 'open' to work properly
+        if (not pluginPath.endswith('.indigoPlugin')):
+            stagedPluginPath = os.path.join(tmpdir, '%s.indigoPlugin' % pInfo.name)
+            self._debug('Staging plugin: %s' % stagedPluginPath)
+
+            if (os.path.exists(stagedPluginPath)):
+                shutil.rmtree(stagedPluginPath)
+
+            os.rename(pluginPath, stagedPluginPath)
+            pluginPath = stagedPluginPath
+
+        self._debug('Installing %s' % pInfo.name)
+        subprocess.call(['open', pluginPath])
 
     #---------------------------------------------------------------------------
     # return the valid zipfile from the release, or raise an exception
@@ -276,7 +320,11 @@ class GitHubPluginUpdater(object):
     #---------------------------------------------------------------------------
     # convenience method for log messages
     def _log(self, msg):
-        indigo.server.log(msg)
+        # FIXME - this is a nasty hack, can't we pass the log call to a plugin method like debug and error?
+        try:
+            indigo.server.log(msg)
+        except:
+            print msg
 
     #---------------------------------------------------------------------------
     # convenience method for debug messages
@@ -293,3 +341,28 @@ class GitHubPluginUpdater(object):
 ################################################################################
 # maps the standard version string as a tuple for comparrison
 def ver(vstr): return tuple(map(int, (vstr.split('.'))))
+
+################################################################################
+## stub plugin class for testing
+class TestPluginStub(object):
+
+    #---------------------------------------------------------------------------
+    def __init__(self, version='0'):
+        self.pluginId = 'com.heddings.indigo.ghpu'
+        self.pluginName = 'Plugin Stub'
+        self.pluginVersion = version
+
+    #---------------------------------------------------------------------------
+    # expected logging methods
+    def log(self, msg): print '%s' % msg
+    def debugLog(self, msg): print '[DEBUG] %s' % msg
+    def errorLog(self, msg): print '[ERROR] %s' % msg
+
+################################################################################
+## TEST ENTRY
+if __name__ == "__main__":
+    plugin = TestPluginStub()
+
+    updater = GitHubPluginUpdater(plugin=plugin)
+    updater.update()
+    
