@@ -62,9 +62,7 @@ class Plugin(indigo.PluginBase):
     def addDeviceToListUser(self,device):
         propsIPAddress = ''
         propsMACAddress = ''
-        propsMinutesOut = 0
-        lastSeen  = int(time.time()) - 15000
-        firstSeen = int(time.time()) - 15000
+
         if device.id not in self.userDeviceList:
             propsIPAddress = device.pluginProps["ipaddress"]
             propsIPAddress = propsIPAddress.strip()
@@ -72,8 +70,8 @@ class Plugin(indigo.PluginBase):
             propsMACAddress = device.pluginProps["macaddress"]
             propsMACAddress = propsMACAddress.strip()
             propsMACAddress = propsMACAddress.replace (' ','')
-            propsMinutesOut = int(device.pluginProps["minutesout"])
-            self.userDeviceList[device.id] = {'ref':device, 'ipaddress':propsIPAddress, 'minutesout': propsMinutesOut, 'macaddress':propsMACAddress, 'lastSeen':lastSeen, 'firstSeen':firstSeen}
+            
+            self.userDeviceList[device.id] = {'ref':device, 'ipaddress':propsIPAddress, 'macaddress':propsMACAddress}
             if propsMACAddress > '':
                 device.pluginProps["address"] = propsMACAddress
             else:
@@ -394,19 +392,13 @@ class Plugin(indigo.PluginBase):
             self.debugLog(theJSON)
             return
 
-
-        #now = int(time.time())
-
         for client in self.userDeviceList:
             try:
                 clientDevice = self.userDeviceList[client]['ref']
-                #lastSeen     = self.userDeviceList[client]['lastSeen']
-                #firstSeen    = self.userDeviceList[client]['firstSeen']
-                #minutesout   = self.userDeviceList[client]['minutesout']
-                #secondsout   = minutesout * 60
+                
                 connected    = False
                 matched      = False
-                #memolast     = lastSeen
+                
                 rssi         = 0
                 signal       = 0
                 lastSeen     = 0
@@ -447,32 +439,17 @@ class Plugin(indigo.PluginBase):
                     except Exception, e:
                         self.errorLog("Error looping clients (1): " + str(e))
 
-                #if (now - lastSeen) > secondsout:
-                #    connected = False
-                #else:
-                #    connected = True
+                
                 
                 connected = matched
 
                 if clientDevice.states["onOffState"] != connected:
                     clientDevice.updateStateOnServer("onOffState",connected)
                     if connected:
-                        #self.debugLog("Unifi Controller: " + clientDevice.name + ' is connected. Has been absent during ' + str((now - memolast)/60) + ' minutes.' )
-                        #self.userDeviceList[client]['firstseen'] = now
                         self.debugLog('device "' + clientDevice.name + '" now is connected.')
                     else:
-                        #self.debugLog("Unifi Controller: " + clientDevice.name + ' is disconnected. Has been present during ' + str((now - firstSeen)/60) + ' minutes.' )
                         self.debugLog('device "' + clientDevice.name + '" now is absent.')
-                
-                #self.userDeviceList[client]['firstSeen'] = firstSeen
-                #self.userDeviceList[client]['lastSeen'] = lastSeen
-            
-                #firstSeenUi = datetime.datetime.fromtimestamp(firstSeen).strftime('%Y-%m-%d %H:%M:%S')
-                #lastSeenUi = datetime.datetime.fromtimestamp(lastSeen).strftime('%Y-%m-%d %H:%M:%S')                
-                #clientDevice.updateStateOnServer("firstSeen", value=firstSeen, uiValue=firstSeenUi)
-                #clientDevice.updateStateOnServer("lastSeen", value=lastSeen, uiValue=lastSeenUi)
-                
-                
+
                 if connected:
                     self.updateDeviceState (clientDevice,"lastSeen",  lastSeen) 
                     self.updateDeviceState (clientDevice,"lastAppMac",  ap_mac)
