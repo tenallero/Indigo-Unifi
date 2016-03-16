@@ -37,6 +37,18 @@
                 <ControlPageLabel>lastSeen</ControlPageLabel>
             </State>
             
+            <State id="upTime" defaultValue="0">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>upTime</TriggerLabel>
+                <ControlPageLabel>upTime</ControlPageLabel>
+            </State>
+            
+            <State id="appMac" >
+                <ValueType>String</ValueType>
+                <TriggerLabel>appMac</TriggerLabel>
+                <ControlPageLabel>appMac</ControlPageLabel>
+            </State>
+            
             <State id="signal" defaultValue="0">
                 <ValueType>Number</ValueType>
                 <TriggerLabel>signal</TriggerLabel>

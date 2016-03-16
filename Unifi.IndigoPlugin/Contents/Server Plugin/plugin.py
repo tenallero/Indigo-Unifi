@@ -411,6 +411,8 @@ class Plugin(indigo.PluginBase):
                 signal       = 0
                 lastSeen     = 0
                 firstSeen    = 0
+                upTime       = 0
+                ap_mac       = ''
                 
                 for sta in res:
                     mac = ""
@@ -434,11 +436,12 @@ class Plugin(indigo.PluginBase):
                         if (matched):
                             lastSeen  = int(sta['last_seen'])
                             firstSeen = int(sta['first_seen'])
-                            
+                            upTime    = int(sta['uptime'])
                             #name = sta['name']
                             #hostname = sta['hostname']
                             rssi   = int(sta['rssi'])
                             signal = int(sta['signal'])
+                            ap_mac = sta['ap_mac']
                             break
                             
                     except Exception, e:
@@ -470,8 +473,12 @@ class Plugin(indigo.PluginBase):
                 #clientDevice.updateStateOnServer("lastSeen", value=lastSeen, uiValue=lastSeenUi)
                 
                 
-                self.updateDeviceState (clientDevice,"firstSeen", firstSeen)
-                self.updateDeviceState (clientDevice,"lastSeen",  lastSeen)                    
+                if connected:
+                    self.updateDeviceState (clientDevice,"lastSeen",  lastSeen) 
+                    self.updateDeviceState (clientDevice,"apMac",  ap_mac)
+                    
+                self.updateDeviceState (clientDevice,"firstSeen", firstSeen)                                  
+                self.updateDeviceState (clientDevice,"upTime",    upTime)    
                 self.updateDeviceState (clientDevice,"rssi",      rssi)
                 self.updateDeviceState (clientDevice,"signal",    signal)
 
