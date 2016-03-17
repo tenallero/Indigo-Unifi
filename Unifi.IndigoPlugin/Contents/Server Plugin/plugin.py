@@ -78,8 +78,11 @@ class Plugin(indigo.PluginBase):
                 device.pluginProps["address"] = propsIPAddress
     
     def addDeviceToListWlan(self,device):
-        pass
-
+        if device.id not in self.wlanDeviceList:
+            ssid = device.pluginProps["ssid"]
+            self.wlanDeviceList[device.id] = {'ref':device, 'ssid':ssid}
+            
+            
     def deleteDeviceFromList(self, device):
         if device:
             if device.deviceTypeId == u"unifiuser":
@@ -88,9 +91,6 @@ class Plugin(indigo.PluginBase):
             elif device.deviceTypeId == u"unifiwlan":
                 if device.id in self.wlanDeviceList:
                     del self.wlanDeviceList[device.id]
-            
-            
-
 
     def deviceStopComm(self,device):
         if device.id not in self.userDeviceList:
@@ -104,42 +104,47 @@ class Plugin(indigo.PluginBase):
         self.requestID = 0
         self.updater.checkForUpdate()
 
-
     def shutdown(self):
         self.debugLog(u"shutdown called")
-
 
     def deviceCreated(self, device):
         self.debugLog(u"Created device of type \"%s\"" % device.deviceTypeId)
 
     def validateDeviceConfigUi(self, valuesDict, typeId, devId):
         self.debugLog(u"validating device Prefs called")
-        ipAdr  = valuesDict[u'ipaddress']
-        macAdr = valuesDict[u'macaddress']
+        if typeId == "unifiuser":
+            ipAdr  = valuesDict[u'ipaddress']
+            macAdr = valuesDict[u'macaddress']
 
-        if (ipAdr > "") or (macAdr > ""):
-            pass
-        else:
-            errorMsgDict = indigo.Dict()
-            errorMsgDict[u'ipaddress'] = u"Mac or IP address needed."
-            errorMsgDict[u'macaddress'] = u"Mac or IP address needed."
-            return (False, valuesDict, errorMsgDict)
-        if (ipAdr > ""):
-            if ipAdr.count('.') != 3:
+            if (ipAdr > "") or (macAdr > ""):
+                pass
+            else:
                 errorMsgDict = indigo.Dict()
-                errorMsgDict[u'ipaddress'] = u"This needs to be a valid IP address."
+                errorMsgDict[u'ipaddress'] = u"Mac or IP address needed."
+                errorMsgDict[u'macaddress'] = u"Mac or IP address needed."
                 return (False, valuesDict, errorMsgDict)
-            if self.validateAddress (ipAdr) == False:
+            if (ipAdr > ""):
+                if ipAdr.count('.') != 3:
+                    errorMsgDict = indigo.Dict()
+                    errorMsgDict[u'ipaddress'] = u"This needs to be a valid IP address."
+                    return (False, valuesDict, errorMsgDict)
+                if self.validateAddress (ipAdr) == False:
+                    errorMsgDict = indigo.Dict()
+                    errorMsgDict[u'ipaddress'] = u"This needs to be a valid IP address."
+                    return (False, valuesDict, errorMsgDict)
+            if (macAdr > ""):
+                #1c:ab:a7:d8:23:d2
+                if macAdr.count(':') != 5:
+                    errorMsgDict = indigo.Dict()
+                    errorMsgDict[u'macaddress'] = u"This needs to be a valid MAC address."
+                    return (False, valuesDict, errorMsgDict)
+        if typeId == "unifiwlan":
+            ssid = valuesDict[u'ssid'].strip()
+            if not ssid:
                 errorMsgDict = indigo.Dict()
-                errorMsgDict[u'ipaddress'] = u"This needs to be a valid IP address."
+                errorMsgDict[u'ssid'] = u"SSID needed."
                 return (False, valuesDict, errorMsgDict)
-        if (macAdr > ""):
-            #1c:ab:a7:d8:23:d2
-            if macAdr.count(':') != 5:
-                errorMsgDict = indigo.Dict()
-                errorMsgDict[u'macaddress'] = u"This needs to be a valid MAC address."
-                return (False, valuesDict, errorMsgDict)
-
+        
         return (True, valuesDict)
 
     def validatePrefsConfigUi(self, valuesDict):
@@ -224,13 +229,46 @@ class Plugin(indigo.PluginBase):
 
         indigo.server.log ("Preferences loaded for Unifi controller " + self.ControllerURL + " (Release " + self.ControllerRel +")")
 
-        #curl1 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/login'
-        #curl2 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/api/s/default/stat/sta'
+    ###################################################################
+    # Concurrent Thread.
+    ###################################################################
 
-        #self.CurlCommand = curl1 + "; " + curl2
+    def runConcurrentThread(self):
+        try:
+            lastTime = datetime.datetime.now()
+            nextTime = lastTime
+            while not(self.stopThread):
+                self.sleep(0.3)
+                todayNow = datetime.datetime.now()
+                if nextTime <= todayNow:
+
+                    nextTime = todayNow + datetime.timedelta(seconds=self.ControllerInterval)                    
+                    self.unifiUserStatusRequest()
+                    self.unifiWlanStatusRequest()
+        except self.StopThread:
+            pass
+            self.debugLog(u"Exited loop")
+
+        except Exception, e:
+            self.errorLog (u"Error: " + str(e))
+            pass
+
+
+    def stopConcurrentThread(self):
+        self.stopThread = True
+        self.debugLog(u"stopConcurrentThread called")
+
+
+    ###################################################################
+    # Unifi Web API
+    ###################################################################
+    
+    #curl1 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/login'
+    #curl2 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/api/s/default/stat/sta'
+
+    #self.CurlCommand = curl1 + "; " + curl2
 
     def getCurlCommand (self,url):
-
         if url == 'login':
             apiurl = ''
             pass
@@ -272,35 +310,6 @@ class Plugin(indigo.PluginBase):
             return False
         return True
 
-    ###################################################################
-    # Concurrent Thread. Socket
-    ###################################################################
-
-    def runConcurrentThread(self):
-        try:
-            lastTime = datetime.datetime.now()
-            nextTime = lastTime
-            while not(self.stopThread):
-                self.sleep(0.5)
-                todayNow = datetime.datetime.now()
-                if nextTime <= todayNow:
-
-                    nextTime = todayNow + datetime.timedelta(seconds=self.ControllerInterval)                    
-                    self.unifiUserStatusRequest()
-                    self.unifiWlanStatusRequest()
-        except self.StopThread:
-            pass
-            self.debugLog(u"Exited loop")
-
-        except Exception, e:
-            self.errorLog (u"Error: " + str(e))
-            pass
-
-
-    def stopConcurrentThread(self):
-        self.stopThread = True
-        self.debugLog(u"stopConcurrentThread called")
-
     class APIError(Exception):
         pass
 
@@ -312,6 +321,10 @@ class Plugin(indigo.PluginBase):
         if 'data' in obj:
             return obj['data']
         return obj
+
+    ###################################################################
+    # WLAN device methodes
+    ###################################################################
 
     def unifiWlanStatusRequest (self):
         theJSON = ""
@@ -339,26 +352,26 @@ class Plugin(indigo.PluginBase):
 
         for wlan in self.wlanDeviceList:
             try:
-                ssid = self.userDeviceList[wlan]['ssid']
+                ssid = self.wlanDeviceList[wlan]['ssid'].strip().upper()
                 for sta in res:
                     name = ""
                     enabled = False
                     try:
                         try:
-                            name = sta['name']
+                            name = sta['name'].strip().upper()
                         except Exception, e:
                             pass
                         try:
                             enabled = sta['enabled']
                         except Exception, e:
                             pass
-
                         if name == ssid:
-                            matched = True
-
-                        if (matched):
-                            pass
-
+                            device = self.wlanDeviceList[wlan]["ref"]
+                            if enabled:
+                                device.updateStateOnServer("onOffState",True) 
+                            else:
+                                device.updateStateOnServer("onOffState",False) 
+                            break
                     except Exception, e:
                         self.errorLog("Error looping wlans (1): " + str(e))
 
@@ -366,9 +379,36 @@ class Plugin(indigo.PluginBase):
             except Exception, e:
                 self.errorLog("Error looping wlans (2): " + str(e))
 
+    def unifiWlanRelayOn (self,device):
+        indigo.server.log('Enabling WLAN "' + device.name + '"') 
+        device.updateStateOnServer("onOffState",True)
+        
+        # do it
+
+    def unifiWlanRelayOff (self,device):
+        indigo.server.log('Disabling WLAN "' + device.name + '"') 
+        device.updateStateOnServer("onOffState",False)
+        # do it 
+        
+    def unifiWlanRelayToggle (self,device):
+        if device.states["onOffState"]:
+            self.unifiWlanRelayOff(device)
+        else:
+            self.unifiWlanRelayOn(device)
+   
+    # https://teulix:8443/api/s/default/upd/wlanconf/55edded860b26b9aabb6a3c1
+    # POST
+    # {"name":"Lifx","security":"wpapsk","x_passphrase":"hel@d0depIn@p@r@elnIn0yl@nIn@","wep_idx":"1","x_wep":"","enabled":false,"is_guest":false,"vlan_enabled":false,"vlan":"","hide_ssid":true,"wpa_mode":"wpa2","wpa_enc":"ccmp","usergroup_id":"509039f3f0a9b0e4bd219d88","wlangroup_id":"550da4f160b2c94710a0c927","radius_ip_1":"","radius_port_1":"1812","x_radius_secret_1":"","radius_ip_2":"","radius_port_2":"","x_radius_secret_2":"","radius_ip_3":"","radius_port_3":"","x_radius_secret_3":"","radius_ip_4":"","radius_port_4":"","x_radius_secret_4":"","radius_acct_ip_1":"","radius_acct_port_1":"","x_radius_acct_secret_1":"","radius_acct_ip_2":"","radius_acct_port_2":"","x_radius_acct_secret_2":"","radius_acct_ip_3":"","radius_acct_port_3":"","x_radius_acct_secret_3":"","radius_acct_ip_4":"","radius_acct_port_4":"","x_radius_acct_secret_4":""}
+    
+    # if PYTHON_VERSION == 2:
+    #        return self._read(self.api_url + 'cmd/' + mgr, urllib.urlencode({'json': json.dumps(params)}))
+    
+    
+    ###################################################################
+    # User device methodes
+    ###################################################################
 
     def unifiUserStatusRequest (self):
-
         theJSON = ""
         theCMD  = ""
 
@@ -469,11 +509,28 @@ class Plugin(indigo.PluginBase):
     def sendRpcRequest(self, device, method, params):
         pass
 
+    ###################################################################
+    # Custom Action callbacks
+    ###################################################################
+
+    def actionControlDimmerRelay(self, action, dev):
+        if action.deviceAction == indigo.kDeviceAction.TurnOn:
+            self.unifiWlanRelayOn (dev)
+        elif action.deviceAction == indigo.kDeviceAction.TurnOff:
+            self.unifiWlanRelayOff (dev)
+        elif action.deviceAction == indigo.kDeviceAction.Toggle:
+            self.unifiWlanRelayToggle (dev)
+        elif action.deviceAction == indigo.kDeviceAction.SetBrightness:
+            pass
+        elif action.deviceAction == indigo.kDeviceAction.RequestStatus:
+            indigo.server.log ('sent "' + dev.name + '" status request')
+            self.unifiWlanStatusRequest()
+            pass
+
     def actionControlSensor(self, pluginAction, device):
         if pluginAction.sensorAction == indigo.kDeviceAction.RequestStatus:
             indigo.server.log ('sent "' + device.name + '" status request')
             self.unifiUserStatusRequest()
-            self.unifiWlanStatusRequest()
 
     ########################################
     # Actions Methods

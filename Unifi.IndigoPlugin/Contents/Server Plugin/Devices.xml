@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Devices>
-    <!-- User Device -->
+    
     <Device type="sensor" id="unifiuser">
         <Name>Unifi User</Name>
         <ConfigUI>
@@ -22,7 +22,7 @@
             <Field type="checkbox" id="SupportsStatusRequest"  defaultValue="true" hidden="true" />  
 
         </ConfigUI>
-        <UiDisplayStateId>state</UiDisplayStateId>
+        
         <States>
         
             <State id="firstSeen" defaultValue="0">
@@ -65,7 +65,7 @@
             
         </States>
     </Device>
-    <!-- WLAN Device -->
+    
     <Device type="relay" id="unifiwlan">
         <Name>Unifi WLAN</Name>
         <ConfigUI>
@@ -75,7 +75,7 @@
             </Field>         
             <Field type="checkbox" id="SupportsStatusRequest"  defaultValue="true" hidden="true" />  
         </ConfigUI>
-        <UiDisplayStateId>state</UiDisplayStateId>
+        
         <States>
         </States>
     </Device>
