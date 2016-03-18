@@ -64,12 +64,8 @@ class Plugin(indigo.PluginBase):
         propsMACAddress = ''
 
         if device.id not in self.userDeviceList:
-            propsIPAddress = device.pluginProps["ipaddress"]
-            propsIPAddress = propsIPAddress.strip()
-            propsIPAddress = propsIPAddress.replace (' ','')
-            propsMACAddress = device.pluginProps["macaddress"]
-            propsMACAddress = propsMACAddress.strip()
-            propsMACAddress = propsMACAddress.replace (' ','')
+            propsIPAddress  = device.pluginProps["ipaddress"].strip().replace (' ','')           
+            propsMACAddress = device.pluginProps["macaddress"].strip().replace (' ','')            
             
             self.userDeviceList[device.id] = {'ref':device, 'ipaddress':propsIPAddress, 'macaddress':propsMACAddress}
             if propsMACAddress > '':
@@ -229,6 +225,14 @@ class Plugin(indigo.PluginBase):
 
         indigo.server.log ("Preferences loaded for Unifi controller " + self.ControllerURL + " (Release " + self.ControllerRel +")")
 
+    def menuGetDevWlan(self, filter, valuesDict, typeId, elemId):
+        menuList = []
+        wLanList = self.unifiGetWlanList()        
+        for wlan in wLanList:
+            name = wlan['name'].strip()
+            menuList.append((name, name))
+        return menuList
+
     ###################################################################
     # Concurrent Thread.
     ###################################################################
@@ -326,6 +330,32 @@ class Plugin(indigo.PluginBase):
     # WLAN device methodes
     ###################################################################
 
+    def unifiGetWlanList(self):
+        theJSON = ""
+        theCMD  = ""
+        res     = None
+        
+        try:
+            theCMD = self.getCurlCommand_getWlans()
+            p = os.popen(theCMD,"r")
+            while 1:
+                line = p.readline()
+                if not line: break
+                theJSON += line
+        except Exception, e:
+            self.debugLog("Error calling curl")
+            self.debugLog(theCMD)
+            return None
+
+        try:
+            res = self._jsondec(theJSON)
+        except Exception, e:
+            self.debugLog("Bad json file")
+            self.debugLog(theCMD)
+            self.debugLog(theJSON)
+            return None
+        return res
+    
     def unifiWlanStatusRequest (self):
         theJSON = ""
         theCMD  = ""
