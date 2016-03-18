@@ -12,8 +12,17 @@ import time
 import simplejson as json
 import os
 from ghpu import GitHubPluginUpdater
+import sys
+PYTHON_VERSION = sys.version_info[0]
+import urllib
+    
 #from unifi.controller import Controller
 
+class APIError(Exception):
+    #self.debugLog("Error Web API: " + str(Exception))
+    #plugin.errorLog("Error Web API: " + str(Exception))
+    pass
+        
 class Plugin(indigo.PluginBase):
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
@@ -39,7 +48,9 @@ class Plugin(indigo.PluginBase):
         self.sock = None
         self.socketBufferSize = 512
         self.socketStop       = False
-
+        
+        self.pushoverPlugin = None
+        
     def __del__(self):
         indigo.PluginBase.__del__(self)
 
@@ -75,7 +86,7 @@ class Plugin(indigo.PluginBase):
     
     def addDeviceToListWlan(self,device):
         if device.id not in self.wlanDeviceList:
-            ssid = device.pluginProps["ssid"]
+            ssid = device.pluginProps["ssid"].strip()
             self.wlanDeviceList[device.id] = {'ref':device, 'ssid':ssid}
             
             
@@ -98,6 +109,9 @@ class Plugin(indigo.PluginBase):
         self.loadPluginPrefs()
         self.debugLog(u"startup called")
         self.requestID = 0
+        self.pushoverPlugin  = indigo.server.getPlugin("io.thechad.indigoplugin.pushover")
+        if not self.pushoverPlugin.isEnabled():
+            self.debugLog (u"Error: Pushover plugin is not enabled")
         self.updater.checkForUpdate()
 
     def shutdown(self):
@@ -267,8 +281,10 @@ class Plugin(indigo.PluginBase):
     # Unifi Web API
     ###################################################################
     
-    #curl1 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/login'
-    #curl2 = '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/api/s/default/stat/sta'
+    #curl1 = /usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/login
+    #curl2 = /usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/api/s/default/stat/sta
+    #curl3 = /usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" --data "username=canteula" --data "password=tenallero" https://172.30.74.43:8443/api/s/default/list/wlanconf
+
 
     #self.CurlCommand = curl1 + "; " + curl2
 
@@ -307,15 +323,16 @@ class Plugin(indigo.PluginBase):
     def getCurlCommand_getWlans (self):
         return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('list/wlanconf')
 
+    def getCurlCommand_getWlanDetail(self,id):
+        if id:
+            return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('upd/wlanconf/' + id.strip())
+  
     def validateAddress (self,value):
         try:
             socket.inet_aton(value)
         except socket.error:
             return False
         return True
-
-    class APIError(Exception):
-        pass
 
     def _jsondec(self, data):
         obj = json.loads(data)
@@ -356,12 +373,13 @@ class Plugin(indigo.PluginBase):
             return None
         return res
     
-    def unifiWlanStatusRequest (self):
+    def unifiGetWlanDetail(self,id):
         theJSON = ""
         theCMD  = ""
-
+        res     = None
+        
         try:
-            theCMD = self.getCurlCommand_getWlans()
+            theCMD = self.getCurlCommand_getWlanDetail(id)
             p = os.popen(theCMD,"r")
             while 1:
                 line = p.readline()
@@ -370,7 +388,7 @@ class Plugin(indigo.PluginBase):
         except Exception, e:
             self.debugLog("Error calling curl")
             self.debugLog(theCMD)
-            return
+            return None
 
         try:
             res = self._jsondec(theJSON)
@@ -378,12 +396,108 @@ class Plugin(indigo.PluginBase):
             self.debugLog("Bad json file")
             self.debugLog(theCMD)
             self.debugLog(theJSON)
+            return None
+        return res
+    
+    def unifiPostWlanDetail(self,id,changes):
+        theCMD  = ''
+        theJSON = ''
+        id = id.strip()
+        if not id or not changes:
             return
+        if (self.ControllerRel == 'V2'):
+            apiurl = 'api/'
+        else:
+            apiurl = 'api/s/' + self.ControllerSite.strip() + '/'
+            
+        
+        payload = {
+            "name":changes["name"],
+            "security":changes["security"],
+            "x_passphrase":changes["x_passphrase"],
+            "wep_idx":changes["wep_idx"],
+            "x_wep":changes["x_wep"],
+            "enabled":changes["enabled"],
+            "is_guest":changes["is_guest"],
+            "vlan_enabled":changes["vlan_enabled"],
+            "vlan":changes["vlan"],
+            "hide_ssid":changes["hide_ssid"],
+            "wpa_mode":changes["wpa_mode"],
+            "wpa_enc":changes["wpa_enc"],
+            "usergroup_id":changes["usergroup_id"],
+            "wlangroup_id":changes["wlangroup_id"],
+            "radius_ip_1":changes["radius_ip_1"],
+            "radius_port_1":changes["radius_port_1"],
+            "x_radius_secret_1":changes["x_radius_secret_1"],
+            "radius_ip_2":"",
+            "radius_port_2":"",
+            "x_radius_secret_2":"",
+            "radius_ip_3":"",
+            "radius_port_3":"",
+            "x_radius_secret_3":"",
+            "radius_ip_4":"",
+            "radius_port_4":"",
+            "x_radius_secret_4":"",
+            "radius_acct_ip_1":"",
+            "radius_acct_port_1":"",
+            "x_radius_acct_secret_1":"",
+            "radius_acct_ip_2":"",
+            "radius_acct_port_2":"",
+            "x_radius_acct_secret_2":"",
+            "radius_acct_ip_3":"",
+            "radius_acct_port_3":"",
+            "x_radius_acct_secret_3":"",
+            "radius_acct_ip_4":"",
+            "radius_acct_port_4":"",
+            "x_radius_acct_secret_4":""
+            }
+           
+        payloadData = json.dumps(payload) 
+        payloadData = urllib.quote_plus(payloadData)        
+        theCMD = ""
+        theCMD += "/usr/bin/curl "        
+        # Añado URL
+        theCMD += " '" + self.ControllerURL + apiurl + 'upd/wlanconf/' + id + "'" 
+        # Añado Content-Type
+        theCMD += " -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' "
+        theCMD += " -H 'Accept: */*'"     
+        # Añado data
+        theCMD += " --data 'json="
+        theCMD += payloadData
+        theCMD += "'"
+        #Añado autentificacion 
+        theCMD += ' --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" '
+        theCMD += ' --data "username=' + self.ControllerUsername + '" '
+        theCMD += ' --data "password=' + self.ControllerPassword + '" '    
+  
+        try:
+            p = os.popen(theCMD,"r")
+            while 1:
+                line = p.readline()
+                if not line: break
+                theJSON += line
+        except Exception, e:
+            self.debugLog("Error calling curl: " + str(e))
+            self.debugLog(theCMD)      
+            return None
+
+        try:
+            res = self._jsondec(theJSON)
+        except Exception, e:
+            self.debugLog("Bad json file: " + str(e))
+            self.debugLog(theCMD)
+            self.debugLog(theJSON)
+            return None
+        return res
+        
+    
+    def unifiWlanStatusRequest (self):
+        unifiWlanList = self.unifiGetWlanList()  
 
         for wlan in self.wlanDeviceList:
             try:
                 ssid = self.wlanDeviceList[wlan]['ssid'].strip().upper()
-                for sta in res:
+                for sta in unifiWlanList:
                     name = ""
                     enabled = False
                     try:
@@ -412,13 +526,12 @@ class Plugin(indigo.PluginBase):
     def unifiWlanRelayOn (self,device):
         indigo.server.log('Enabling WLAN "' + device.name + '"') 
         device.updateStateOnServer("onOffState",True)
-        
-        # do it
+        self.unifiWlanSetEnabled (device,True)
 
     def unifiWlanRelayOff (self,device):
         indigo.server.log('Disabling WLAN "' + device.name + '"') 
         device.updateStateOnServer("onOffState",False)
-        # do it 
+        self.unifiWlanSetEnabled (device,False)
         
     def unifiWlanRelayToggle (self,device):
         if device.states["onOffState"]:
@@ -432,6 +545,37 @@ class Plugin(indigo.PluginBase):
     
     # if PYTHON_VERSION == 2:
     #        return self._read(self.api_url + 'cmd/' + mgr, urllib.urlencode({'json': json.dumps(params)}))
+    
+    
+    def unifiWlanSetEnabled (self,device,enabled):
+        unifiWlanList = self.unifiGetWlanList() 
+        target        = None
+        unifiEnabled  = False
+        unifiId       = ""      
+        ssid = device.pluginProps['ssid'].strip().upper() 
+        for wlan in unifiWlanList:         
+            try:
+                unifiName = wlan['name'].strip().upper()
+                if unifiName == ssid:                    
+                    unifiEnabled = wlan['enabled']                    
+                    unifiId      = wlan['_id']   
+                    break               
+            except Exception, e:
+                self.errorLog("unifiWlanSetEnabled Error: " + str(e))
+        if unifiId:       
+            if unifiEnabled == enabled:
+                #self.debugLog("unifiWlanSetEnabled: No hacemos nada." )
+                return
+            device.updateStateOnServer("onOffState",enabled)     
+            res    = self.unifiGetWlanDetail(unifiId)  
+            target = res[0]
+            target['enabled'] = enabled
+            #self.debugLog(str(target))
+            self.unifiPostWlanDetail(unifiId,target)  
+            
+            
+            self.unifiWlanStatusRequest()
+             
     
     
     ###################################################################

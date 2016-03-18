@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
 <Actions>	
     <Action id="silentStatusRequest" deviceFilter="self">
-		<Name>silent StatusRequest</Name>
-		<CallbackMethod>silentStatusRequest</CallbackMethod>
-		
+		<Name>Silent Status Request</Name>
+		<CallbackMethod>silentStatusRequest</CallbackMethod>		
 	</Action>	
 </Actions>
