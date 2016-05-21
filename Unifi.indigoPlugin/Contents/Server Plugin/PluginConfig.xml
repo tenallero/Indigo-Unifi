@@ -6,7 +6,7 @@
     <Field id="port" type="textfield" defaultValue="8443" >
         <Label>Unifi Controler TCP Port:</Label>       
     </Field>
-    <Field id="release" type="textfield" defaultValue="V3" >
+    <Field id="release" type="textfield" defaultValue="V4" >
         <Label>Unifi Controler release:</Label>       
     </Field>
     <Field id="siteid" type="textfield" defaultValue="default" >

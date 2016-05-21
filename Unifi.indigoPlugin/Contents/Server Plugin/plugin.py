@@ -31,7 +31,7 @@ class Plugin(indigo.PluginBase):
 
         self.ControllerIP   = ""
         self.ControllerPort = ""
-        self.ControllerRel  = "V3"
+        self.ControllerRel  = "V4"
         self.ControllerSite = ""
         self.ControllerAuth     = False
         self.ControllerUsername = ""
@@ -288,45 +288,79 @@ class Plugin(indigo.PluginBase):
 
     #self.CurlCommand = curl1 + "; " + curl2
 
-    def getCurlCommand (self,url):
-        if url == 'login':
-            apiurl = ''
-            pass
-        else:
-            if (self.ControllerRel == 'V2'):
-                apiurl = 'api/'
-            else:
-                apiurl = 'api/s/' + self.ControllerSite.strip() + '/'
+
+    def getCurlLoginV2 (self):
+        res = ""
+        res += '/usr/bin/curl --ss3 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" '
+        res += ' --data "username=' + self.ControllerUsername + '" '
+        res += ' --data "password=' + self.ControllerPassword + '" '
+        res += ' ' + self.ControllerURL + 'login'
+        return res
+        
+    def getCurlLoginV3 (self):
         res = ""
         res += '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" '
         res += ' --data "username=' + self.ControllerUsername + '" '
         res += ' --data "password=' + self.ControllerPassword + '" '
+        res += ' ' + self.ControllerURL + 'login'
+        return res
+        
+    def getCurlLoginV4 (self):
+        res = ""
+        res += '/usr/bin/curl -X POST --tlsv1 --insecure '
+        res += ' -H "Content-Type: application/json; charset=utf-8"'
+        res += ' -H "Referer: ' + self.ControllerURL + 'login?redirect=%2Fmanage" '
+        res += ' --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie '
+        res += " -d '{"
+        res += '"username": "' + self.ControllerUsername + '", '
+        res += '"password": "' + self.ControllerPassword + '" '
+        res += "}'"
+        res += ' ' + self.ControllerURL + 'api/login'
+        return res
+        
+    def getCurlLogin (self):
+        if (self.ControllerRel == 'V2'):
+           return self.getCurlLoginV2()
+        if (self.ControllerRel == 'V3'):
+           return self.getCurlLoginV3()
+        if (self.ControllerRel == 'V4'):
+           return self.getCurlLoginV4()   
+        return ""
+        
+    def getCurlCommand (self,url):
+        if (self.ControllerRel == 'V2'):
+            apiurl = 'api/'
+        else:
+            apiurl = 'api/s/' + self.ControllerSite.strip() + '/'
+        res = ""
+        res += '/usr/bin/curl --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure '
+        if (self.ControllerRel == 'V2') or (self.ControllerRel == 'V3'):
+            res += ' --data "login=login" '
+            res += ' --data "username=' + self.ControllerUsername + '" '
+            res += ' --data "password=' + self.ControllerPassword + '" '
         res += ' ' + self.ControllerURL
         res += apiurl
         res += url
         return res
 
     def getCurlCommand_getClients (self):
-        return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('stat/sta')
-        #if  (self.ControllerRel == 'V2'):
-        #   return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('api/stat/sta')
-        #else:
-        #   return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('api/s/default/stat/sta')
+        return self.getCurlCommand('stat/sta')
 
     def getCurlCommand_getUsers (self):
-        return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('list/user')
-
+        return self.getCurlCommand('list/user')
 
     def getCurlCommand_getAps (self):
-        return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('stat/device')
+        return self.getCurlCommand('stat/device')
 
     def getCurlCommand_getWlans (self):
-        return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('list/wlanconf')
+        return self.getCurlCommand('list/wlanconf')
 
     def getCurlCommand_getWlanDetail(self,id):
         if id:
-            return self.getCurlCommand('login') + ' ; ' + self.getCurlCommand('upd/wlanconf/' + id.strip())
-  
+            return self.getCurlCommand('upd/wlanconf/' + id.strip())
+        else:
+            return ''
+            
     def validateAddress (self,value):
         try:
             socket.inet_aton(value)
@@ -343,6 +377,67 @@ class Plugin(indigo.PluginBase):
             return obj['data']
         return obj
 
+
+    ###################################################################
+    # Login
+    ###################################################################
+    
+    def doLogin (self):
+        if (self.ControllerRel == 'V2'):
+           return self.doLoginV3()
+        if (self.ControllerRel == 'V3'):
+           return self.doLoginV3()
+        if (self.ControllerRel == 'V4'):
+           return self.doLoginV4()   
+        return False
+        
+    def doLoginV3 (self):
+        theCMD  = ""
+        try:
+            theCMD = self.getCurlLogin()
+            p = os.popen(theCMD,"r")
+            
+        except Exception, e:
+            self.debugLog("Error calling curl")
+            self.debugLog(theCMD)
+            return False
+        return True
+        
+    def doLoginV4 (self):
+        theJSON = ""
+        theCMD  = ""
+        res     = None
+        
+        try:
+            theCMD = self.getCurlLogin()
+            p = os.popen(theCMD,"r")
+            while 1:
+                line = p.readline()
+                if not line: break
+                theJSON += line
+        except Exception, e:
+            self.debugLog("Error calling curl")
+            self.debugLog(theCMD)
+            return False
+        try:
+            res = self._jsondec(theJSON)
+        except Exception, e:
+            self.debugLog("Bad json file")
+            self.debugLog(theCMD)
+            self.debugLog(theJSON)
+            return False
+        
+        # Buscar "rc":"ok"
+        #meta = res["meta"]  
+        #rc = meta["rc"]
+        #if rc == "ok":
+        #    return True
+        #else:
+        #    self.debugLog("Invalid login")
+        #    return False
+        return True
+        
+        
     ###################################################################
     # WLAN device methodes
     ###################################################################
@@ -352,6 +447,9 @@ class Plugin(indigo.PluginBase):
         theCMD  = ""
         res     = None
         
+        if not(self.doLogin()):
+            return None
+            
         try:
             theCMD = self.getCurlCommand_getWlans()
             p = os.popen(theCMD,"r")
@@ -378,6 +476,9 @@ class Plugin(indigo.PluginBase):
         theCMD  = ""
         res     = None
         
+        if not(self.doLogin()):
+            return None
+            
         try:
             theCMD = self.getCurlCommand_getWlanDetail(id)
             p = os.popen(theCMD,"r")
@@ -453,23 +554,43 @@ class Plugin(indigo.PluginBase):
             }
            
         payloadData = json.dumps(payload) 
-        payloadData = urllib.quote_plus(payloadData)        
+                        
         theCMD = ""
         theCMD += "/usr/bin/curl "        
         # Añado URL
-        theCMD += " '" + self.ControllerURL + apiurl + 'upd/wlanconf/' + id + "'" 
-        # Añado Content-Type
-        theCMD += " -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' "
-        theCMD += " -H 'Accept: */*'"     
-        # Añado data
-        theCMD += " --data 'json="
-        theCMD += payloadData
-        theCMD += "'"
-        #Añado autentificacion 
-        theCMD += ' --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure --data "login=login" '
-        theCMD += ' --data "username=' + self.ControllerUsername + '" '
-        theCMD += ' --data "password=' + self.ControllerPassword + '" '    
-  
+        #theCMD += " '" + self.ControllerURL + apiurl + 'upd/wlanconf/' + id + "'" 
+        if (self.ControllerRel == 'V4'):
+            # Añado Content-Type
+            theCMD += ' -X POST '
+            theCMD += ' --tlsv1 --insecure '
+            theCMD += ' --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie  ' 
+            theCMD += ' -H "Content-Type: application/json; charset=utf-8" '
+            theCMD += ' -H "Accept: */*" '     
+            # Añado data
+            theCMD += " -d '"
+            theCMD += payloadData
+            theCMD += "' "
+            theCMD += self.ControllerURL + apiurl + 'upd/wlanconf/' + id 
+        else:
+            # Añado Content-Type
+            theCMD += " -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' "
+            theCMD += " -H 'Accept: */*'"     
+            # Añado data
+            theCMD += " --data 'json="
+            payloadData = urllib.quote_plus(payloadData) 
+            theCMD += payloadData
+            theCMD += "'"
+            #Añado autentificacion 
+            theCMD += ' --tlsv1 --cookie /tmp/unifi_cookie --cookie-jar /tmp/unifi_cookie --insecure ' 
+            if (self.ControllerRel == 'V2') or (self.ControllerRel == 'V3'):
+                theCMD += ' --data "login=login" '
+                theCMD += ' --data "username=' + self.ControllerUsername + '" '
+                theCMD += ' --data "password=' + self.ControllerPassword + '" '    
+            theCMD += self.ControllerURL + apiurl + 'upd/wlanconf/' + id 
+            
+        if not(self.doLogin()):
+            return None
+            
         try:
             p = os.popen(theCMD,"r")
             while 1:
@@ -493,35 +614,35 @@ class Plugin(indigo.PluginBase):
     
     def unifiWlanStatusRequest (self):
         unifiWlanList = self.unifiGetWlanList()  
-
-        for wlan in self.wlanDeviceList:
-            try:
-                ssid = self.wlanDeviceList[wlan]['ssid'].strip().upper()
-                for sta in unifiWlanList:
-                    name = ""
-                    enabled = False
-                    try:
+        if unifiWlanList:
+            for wlan in self.wlanDeviceList:
+                try:
+                    ssid = self.wlanDeviceList[wlan]['ssid'].strip().upper()
+                    for sta in unifiWlanList:
+                        name = ""
+                        enabled = False
                         try:
-                            name = sta['name'].strip().upper()
+                            try:
+                                name = sta['name'].strip().upper()
+                            except Exception, e:
+                                pass
+                            try:
+                                enabled = sta['enabled']
+                            except Exception, e:
+                                pass
+                            if name == ssid:
+                                device = self.wlanDeviceList[wlan]["ref"]
+                                if enabled:
+                                    device.updateStateOnServer("onOffState",True) 
+                                else:
+                                    device.updateStateOnServer("onOffState",False) 
+                                break
                         except Exception, e:
-                            pass
-                        try:
-                            enabled = sta['enabled']
-                        except Exception, e:
-                            pass
-                        if name == ssid:
-                            device = self.wlanDeviceList[wlan]["ref"]
-                            if enabled:
-                                device.updateStateOnServer("onOffState",True) 
-                            else:
-                                device.updateStateOnServer("onOffState",False) 
-                            break
-                    except Exception, e:
-                        self.errorLog("Error looping wlans (1): " + str(e))
+                            self.errorLog("Error looping wlans (1): " + str(e))
 
 
-            except Exception, e:
-                self.errorLog("Error looping wlans (2): " + str(e))
+                except Exception, e:
+                    self.errorLog("Error looping wlans (2): " + str(e))
 
     def unifiWlanRelayOn (self,device):
         indigo.server.log('Enabling WLAN "' + device.name + '"') 
@@ -551,7 +672,7 @@ class Plugin(indigo.PluginBase):
         unifiWlanList = self.unifiGetWlanList() 
         target        = None
         unifiEnabled  = False
-        unifiId       = ""      
+        unifiId       = ""  
         ssid = device.pluginProps['ssid'].strip().upper() 
         for wlan in unifiWlanList:         
             try:
@@ -559,6 +680,7 @@ class Plugin(indigo.PluginBase):
                 if unifiName == ssid:                    
                     unifiEnabled = wlan['enabled']                    
                     unifiId      = wlan['_id']   
+                    wlanmatch    = wlan                       
                     break               
             except Exception, e:
                 self.errorLog("unifiWlanSetEnabled Error: " + str(e))
@@ -566,12 +688,18 @@ class Plugin(indigo.PluginBase):
             if unifiEnabled == enabled:
                 #self.debugLog("unifiWlanSetEnabled: No hacemos nada." )
                 return
-            device.updateStateOnServer("onOffState",enabled)     
-            res    = self.unifiGetWlanDetail(unifiId)  
-            target = res[0]
-            target['enabled'] = enabled
-            #self.debugLog(str(target))
-            self.unifiPostWlanDetail(unifiId,target)  
+            device.updateStateOnServer("onOffState",enabled)  
+            if (self.ControllerRel == 'V4'):   
+                target = wlanmatch
+            else:
+                res    = self.unifiGetWlanDetail(unifiId) 
+                if res[0]:
+                    target = res[0] 
+            if (target):
+                
+                target['enabled'] = enabled
+                #self.debugLog(str(target))
+                self.unifiPostWlanDetail(unifiId,target)  
             
             
             self.unifiWlanStatusRequest()
@@ -585,6 +713,9 @@ class Plugin(indigo.PluginBase):
     def unifiUserStatusRequest (self):
         theJSON = ""
         theCMD  = ""
+
+        if not(self.doLogin()):
+            return
 
         try:
             theCMD = self.getCurlCommand_getClients()
