@@ -129,7 +129,7 @@ class GitHubPluginUpdater(object):
 
     #---------------------------------------------------------------------------
     # form a GET request to api.github.com and return the parsed JSON response
-    def _GET(self, requestPath):
+    def _GET_old(self, requestPath):
         self._debug('GET %s' % requestPath)
 
         headers = {
@@ -155,6 +155,26 @@ class GitHubPluginUpdater(object):
 
         return data
 
+    def _GET(self, requestPath):
+        self._debug('GET %s' % requestPath)
+        headers = {
+            'User-Agent': 'Indigo-Plugin-Updater',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        data = None
+        requestPath = 'https://api.github.com'+ requestPath
+        f = subprocess.Popen(["curl",  requestPath], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+        #'-H', str(headers), "-k",
+        out, err = f.communicate()
+        if (int(f.returncode) == 0):
+            data = json.loads(out)
+        elif (400 <= f.status < 500):
+            error = json.loads(out)
+            self._error('%s' % error['message'])
+        else:
+            self._error('Error: %s' % unicode(err))
+
+        return data
     #---------------------------------------------------------------------------
     # prepare for an update
     def _prepareForUpdate(self, currentVersion=None):
@@ -308,7 +328,9 @@ class GitHubPluginUpdater(object):
 
         self._debug('Downloading zip file: %s' % zipball)
 
-        zipdata = urlopen(zipball).read()
+        #zipdata = urlopen(zipball).read()
+        f = subprocess.Popen(["curl", "-L",  zipball], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+        zipdata, err = f.communicate()
         zipfile = ZipFile(StringIO(zipdata))
 
         self._debug('Verifying zip file (%d bytes)...' % len(zipdata))
